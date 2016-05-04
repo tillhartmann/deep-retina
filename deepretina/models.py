@@ -36,8 +36,7 @@ def sequential(layers, optimizer, loss='poisson'):
     model : keras.models.Sequential
         A compiled Keras model object
     """
-    model = Sequential()
-    [model.add(layer) for layer in layers]
+    model = Sequential(layers)
     with notify('Compiling'):
         model.compile(loss=loss, optimizer=optimizer)
     return model

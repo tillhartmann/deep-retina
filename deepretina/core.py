@@ -4,6 +4,7 @@ Core tools for training models
 from keras.models import Model
 from .glms import GLM
 from time import time
+import tableprint as tp
 
 __all__ = ['train']
 
@@ -38,13 +39,11 @@ def train(model, experiment, monitor, num_epochs):
     iteration = 0
     train_start = time()
 
-    # update message
-    MSG = '[{}]\tLoss: {:5.4f}\t\tIteration time: {:5.2f} seconds'
-
     # loop over epochs
     try:
         for epoch in range(num_epochs):
-            print('Epoch #{} of {}'.format(epoch + 1, num_epochs))
+            tp.banner('Epoch #{} of {}'.format(epoch + 1, num_epochs))
+            print(tp.header(['Iteration', 'Loss', 'Runtime']), flush=True)
 
             # loop over data batches for this epoch
             for X, y in experiment.train(shuffle=True):
@@ -57,12 +56,15 @@ def train(model, experiment, monitor, num_epochs):
 
                 # train on the batch
                 tstart = time()
-                loss = model.train_on_batch(X, y)[0]
+                loss = model.train_on_batch(X, y)
                 elapsed_time = time() - tstart
 
                 # update
                 iteration += 1
-                print(MSG.format(iteration, float(loss), elapsed_time))
+                # print(MSG.format(iteration, float(loss), elapsed_time))
+                print(tp.row([iteration, float(loss), tp.humantime(elapsed_time)]), flush=True)
+
+            print(tp.bottom(3), flush=True)
 
     except KeyboardInterrupt:
         print('\nCleaning up')

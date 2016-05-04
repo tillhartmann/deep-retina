@@ -6,3 +6,4 @@ keras
 h5py
 matplotlib
 pydot-ng
+tableprint
