@@ -4,12 +4,13 @@ Construct Keras models
 
 from __future__ import absolute_import, division, print_function
 from keras.models import Sequential
-from keras.layers.core import Dropout, Dense, Activation, Flatten
-from keras.layers.convolutional import Convolution2D, MaxPooling2D
-from keras.layers.recurrent import LSTM
+from keras.layers.core import Dropout, Dense, Activation, Flatten, Reshape, Permute
+from keras.layers.convolutional import Convolution2D, MaxPooling2D, Convolution3D
+from keras.layers.recurrent import LSTM, SimpleRNN
 from keras.layers.advanced_activations import ParametricSoftplus
 from keras.layers.normalization import BatchNormalization
 from keras.layers.noise import GaussianNoise, GaussianDropout
+from keras.layers.wrappers import TimeDistributed
 from keras.regularizers import l1l2, activity_l1l2, l2
 from .utils import notify
 
@@ -187,6 +188,44 @@ def convnet(input_shape, nout,
     return layers
 
 
+def distributed_rnn(nout, input_shape, conv_shape, rnn_size):
+    """Builds a distributed RNN
+
+    (Work in progress as of May 04 2016)
+    """
+    history, nx, ny = input_shape
+    num_filters, ktau, kx, ky = conv_shape
+
+    layers = list()
+
+    # add an single 'channels' dimension
+    layers.append(Reshape((history, nx, ny, 1), input_shape=(history, nx, ny)))
+
+    # add the 3D (spatiotemporal) convolutional layer
+    layers.append(Convolution3D(num_filters, ktau, kx, ky, border_mode='valid', dim_ordering='tf'))
+    layers.append(Activation('relu'))
+
+    # reshape to squash spatial dimensions
+    layers.append(Reshape((history - ktau + 1, (nx - kx + 1) * (ny - ky + 1), num_filters)))
+
+    # permute the spatial and temporal dimensions
+    layers.append(Permute((2, 1, 3)))
+
+    # apply a SimpleRNN distributed over the spatial dimension
+    layers.append(TimeDistributed(SimpleRNN(rnn_size)))
+
+    # flatten
+    layers.append(Flatten())
+
+    # final (dense) layer
+    layers.append(Dense(nout))
+
+    # final nonlinearity
+    layers.append(ParametricSoftplus())
+
+    return layers
+
+
 def fixedlstm(input_shape, nout, num_hidden=1600, weight_init='he_normal', l2_reg=0.0):
     """LSTM network with fixed input (e.g. input from the CNN output)
 
@@ -325,7 +364,7 @@ def generalizedconvnet(input_shape, nout,
         # rnn
         if layer_type == 'rnn':
             num_hidden = 100
-            layers.append(SimpleRNN(num_hidden, return_sequences=False, go_backwards=False, 
+            layers.append(SimpleRNN(num_hidden, return_sequences=False, go_backwards=False,
                         init='glorot_uniform', inner_init='orthogonal', activation='tanh',
                         W_regularizer=l2(l2_reg), U_regularizer=l2(l2_reg), dropout_W=0.1,
                         dropout_U=0.1))
